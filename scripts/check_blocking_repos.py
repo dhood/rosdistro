@@ -41,6 +41,7 @@ valid_distro_keys = index.distributions.keys()
 valid_distro_keys.sort()
 if distro_key is None:
     distro_key = valid_distro_keys[-1]
+print('Checking packages for "%s" distribution'%distro_key)
 
 # Find the previous distribution to the current one
 try:
