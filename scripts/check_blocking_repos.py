@@ -123,6 +123,7 @@ current_package_names = set(
 blocked_repos = {}
 unblocked_repos = set()
 total_blocking_repos = set()
+blocking_repos = {} # dictionary where keys are repository names and values are a list of repos blocked
 
 for repository_name in repo_names:
     repo = prev_distro_file.repositories[repository_name]
@@ -143,14 +144,20 @@ for repository_name in repo_names:
     # remove the packages which this repo provides.
     unreleased_pkgs = unreleased_pkgs.difference(packages)
     # Now get the repositories for these packages.
-    blocking_repos = set(prev_distro_file.release_packages[pkg].repository_name
+    blocking_repos_for_this_repo = set(prev_distro_file.release_packages[pkg].repository_name
                          for pkg in unreleased_pkgs)
-    if len(blocking_repos) == 0:
+    if len(blocking_repos_for_this_repo) == 0:
         unblocked_repos.add(repository_name)
     else:
         # Get the repository for the unreleased packages
-        blocked_repos[repository_name] = blocking_repos
-        total_blocking_repos |= blocking_repos
+        blocked_repos[repository_name] = blocking_repos_for_this_repo
+        total_blocking_repos |= blocking_repos_for_this_repo
+        
+        for blocking_repo in blocking_repos_for_this_repo:
+            try: 
+                blocking_repos[blocking_repo] |= set([repository_name]) 
+            except KeyError:
+                blocking_repos[blocking_repo] = set([repository_name])
 
 unblocked_blocking_repos = total_blocking_repos.intersection(unblocked_repos)
 unblocked_leaf_repos = unblocked_repos.difference(unblocked_blocking_repos)
@@ -164,12 +171,19 @@ for repo in unblocked_leaf_repos:
     if len(depends_on) != 0:
         # There are packages that depend on this "leaf", but we didn't find
         # them initially because they weren't related to our inputs
+        for package in depends_on:
+            depends_on_repo = prev_distro_file.release_packages[package].repository_name
+            try: 
+                blocking_repos[repo] |= set([depends_on_repo]) 
+            except KeyError:
+                blocking_repos[repo] = set([depends_on_repo])
         unblocked_blocking_repos.add(repo)
+
 unblocked_leaf_repos = unblocked_leaf_repos.difference(
     unblocked_blocking_repos)
 
 if len(blocked_repos.keys()) > 0:
-    print('The following repos cannot be released because of unreleased '
+    print('\nThe following repos cannot be released because of unreleased '
           'dependencies:')
     for blocked_repo_name in sorted(blocked_repos.keys()):
         unreleased_repos = blocked_repos[blocked_repo_name]
@@ -179,11 +193,15 @@ if len(blocked_repos.keys()) > 0:
             sorted('\t\t{0}'.format(repo) for repo in unreleased_repos)))
 
 if len(unblocked_leaf_repos) > 0:
-    print('The following repos can be released, but do not block other repos:')
+    print('\nThe following repos can be released, but do not block other repos:')
     print('\n'.join(
         sorted('\t{0}'.format(repo) for repo in unblocked_leaf_repos)))
 
 if len(unblocked_blocking_repos) > 0:
-    print('The following repos can be released, and are blocking other repos:')
-    print('\n'.join(
-        sorted('\t{0}'.format(repo) for repo in unblocked_blocking_repos)))
+    print('\nThe following repos can be released, and are blocking other repos:')
+    for blocking_repo_name in sorted(unblocked_blocking_repos):
+        blocked_repos_by_this_repo = blocking_repos[blocking_repo_name]
+        print('\t{0}:'.format(blocking_repo_name))
+
+        print('\n'.join(
+            sorted('\t\t{0}'.format(repo) for repo in blocked_repos_by_this_repo)))
