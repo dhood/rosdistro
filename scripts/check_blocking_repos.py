@@ -75,6 +75,15 @@ if repo_names is None:
 else:
     prev_repo_names = set(
         repo for repo in repo_names if is_released(repo, prev_distro_file))
+    ignored_inputs = set(repo_names).difference(prev_repo_names)
+    if len(ignored_inputs) > 0:
+        print('Ignoring inputs for which repository info not found in previous distribution \
+            (did you list a package instead of a repository?):')
+        print('\n'.join(
+            sorted('\t{0}'.format(repo) for repo in ignored_inputs)))
+    if len(ignored_inputs) == len(repo_names):
+        print('Exiting without checking any dependencies.')
+        exit(0)
 
 keys = distro_file.repositories.keys()
 current_repo_names = set(
@@ -90,16 +99,14 @@ if len(eliminated_repositories) > 0:
 
 repo_names_set = prev_repo_names.difference(
     current_repo_names)
-
 if len(repo_names_set) == 0:
     if repo_names is None:
         print('Everything in {0} was released into the next {1}!'.format(
             prev_distro_key, distro_key))
         print('This was probably a bug.')
     else:
-        print('All inputs are invalid or were already released in {0}.'.format(
+        print('All inputs already released in {0}.'.format(
             distro_key))
-    print('Exiting without checking any dependencies.')
     exit(0)
 
 repo_names = list(repo_names_set)
